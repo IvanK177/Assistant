@@ -1052,6 +1052,35 @@ function HomeworkTab({ state, onUpdate }: HomeworkTabProps) {
 
 // ============================================================
 // SETTINGS TAB
+// Notification helper supporting ServiceWorker and mobile PWA
+async function sendAppNotification(title: string, options?: NotificationOptions) {
+  const mergedOptions: NotificationOptions = {
+    icon: '/pwa-192x192.png',
+    badge: '/favicon.png',
+    ...options,
+  };
+
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      if (reg && 'showNotification' in reg) {
+        await reg.showNotification(title, mergedOptions);
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('ServiceWorker showNotification failed:', e);
+  }
+
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification(title, mergedOptions);
+    }
+  } catch (e) {
+    console.warn('Fallback Notification failed:', e);
+  }
+}
+
 // ============================================================
 interface SettingsTabProps {
   state: AppState;
@@ -1065,13 +1094,61 @@ function SettingsTab({ state, onUpdate }: SettingsTabProps) {
   const set = (patch: Partial<AppState['settings']>) =>
     onUpdate({ ...state, settings: { ...state.settings, ...patch } });
 
+  const isIOS = typeof navigator !== 'undefined' && (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+  const isStandalone = typeof window !== 'undefined' && (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (navigator as any).standalone === true
+  );
+
   const requestNotifications = async () => {
-    if ('Notification' in window) {
+    // On iOS Safari browser tab, Apple restricts Notification API to Home Screen Web Apps
+    if (isIOS && !isStandalone) {
+      alert(
+        '🍎 На iPhone и iPad уведомления работают только при установке приложения на экран «Домой»:\n\n' +
+        '1. Нажмите кнопку «Поделиться» (квадрат со стрелкой вверх внизу экрана Safari).\n' +
+        '2. Выберите пункт «На экран «Домой»».\n' +
+        '3. Откройте приложение с экрана и включите уведомления здесь.'
+      );
+      return;
+    }
+
+    if (!('Notification' in window)) {
+      alert('Ваш браузер или устройство не поддерживает веб-уведомления.');
+      return;
+    }
+
+    if (Notification.permission === 'denied') {
+      alert(
+        '⚠️ Уведомления заблокированы в настройках браузера.\n\n' +
+        'Чтобы их включить:\n' +
+        '1. Нажмите на значок настроек сайта в адресной строке.\n' +
+        '2. Разрешите «Уведомления».\n' +
+        '3. Перезагрузите страницу.'
+      );
+      return;
+    }
+
+    try {
       const permission = await Notification.requestPermission();
-      set({ notificationsEnabled: permission === 'granted' });
       if (permission === 'granted') {
-        new Notification('Assistant', { body: 'Уведомления включены!', icon: '/vite.svg' });
+        set({ notificationsEnabled: true });
+        await sendAppNotification('Assistant', {
+          body: '🔔 Уведомления успешно включены!',
+          icon: '/pwa-192x192.png',
+        });
+      } else {
+        set({ notificationsEnabled: false });
+        if (permission === 'denied') {
+          alert('Разрешение на уведомления было отклонено в диалоговом окне.');
+        }
       }
+    } catch (err) {
+      console.error('requestPermission error:', err);
+      alert('Не удалось запросить разрешение на уведомления.');
     }
   };
 
@@ -1185,11 +1262,22 @@ function SettingsTab({ state, onUpdate }: SettingsTabProps) {
         <div className="settings-row">
           <div className="settings-info">
             <div className="settings-label">Push-уведомления</div>
-            <div className="settings-desc">{state.settings.notificationsEnabled ? '✅ Включены' : 'Напоминание о выходе'}</div>
+            <div className="settings-desc">
+              {state.settings.notificationsEnabled ? '✅ Включены (напоминание перед выходом)' : 'Напоминание о выходе'}
+            </div>
+            {isIOS && !isStandalone && (
+              <div style={{ marginTop: 6, fontSize: '0.75rem', color: '#f59e0b', lineHeight: 1.4 }}>
+                📱 <b>На iPhone:</b> добавьте сайт на экран «Домой» (через кнопку «Поделиться»), чтобы активировать уведомления.
+              </div>
+            )}
           </div>
           <label className="toggle">
-            <input id="notifications-toggle" type="checkbox" checked={state.settings.notificationsEnabled}
-              onChange={() => state.settings.notificationsEnabled ? set({ notificationsEnabled: false }) : requestNotifications()} />
+            <input
+              id="notifications-toggle"
+              type="checkbox"
+              checked={state.settings.notificationsEnabled}
+              onChange={() => state.settings.notificationsEnabled ? set({ notificationsEnabled: false }) : requestNotifications()}
+            />
             <span className="toggle-slider" />
           </label>
         </div>
@@ -1273,9 +1361,9 @@ export default function App() {
 
     if (msUntil > 0 && msUntil < 4 * 60 * 60 * 1000) {
       notifTimerRef.current = setTimeout(() => {
-        new Notification('🚌 Пора выходить!', {
+        sendAppNotification('🚌 Пора выходить!', {
           body: `Выйди в ${busInfo.departureTime} — автобус ${state.busRoutes[0].number} в ${busInfo.busTime}`,
-          icon: '/vite.svg',
+          icon: '/pwa-192x192.png',
         });
       }, msUntil);
     }

@@ -52,18 +52,21 @@ export default function AuthModal({ user, onClose, onSyncPush, onSyncPull }: Aut
     setLoading(true);
     setMsg(null);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password: password.trim(),
       });
       if (error) {
         setMsg({ type: 'error', text: error.message });
+      } else if (data?.session) {
+        setMsg({ type: 'success', text: 'Успешная регистрация! Данные синхронизируются...' });
+        await onSyncPush();
+        setTimeout(onClose, 800);
       } else {
         setMsg({
           type: 'success',
-          text: 'Аккаунт создан! Проверьте почту или войдите, если автоподтверждение включено.',
+          text: 'Аккаунт создан! Перейдите во вкладку «Вход» и войдите.',
         });
-        await onSyncPush();
       }
     } catch (err: unknown) {
       setMsg({ type: 'error', text: (err as Error).message || 'Ошибка регистрации' });

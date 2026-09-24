@@ -1,6 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 import type { AppState } from '../types';
 
+const DEFAULT_SUPABASE_URL = 'https://uvvehsnukzuujncwjwqq.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_bJXSna45NsyOKYAUUdLZ4g_k8IGsG1v';
+
 // Environment variables from Vite (.env or Vercel Environment Variables)
 const envUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -9,8 +12,8 @@ const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const storedUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('assistant_supabase_url') || '' : '';
 const storedKey = typeof localStorage !== 'undefined' ? localStorage.getItem('assistant_supabase_key') || '' : '';
 
-export const SUPABASE_URL = envUrl || storedUrl;
-export const SUPABASE_ANON_KEY = envAnonKey || storedKey;
+export const SUPABASE_URL = envUrl || storedUrl || DEFAULT_SUPABASE_URL;
+export const SUPABASE_ANON_KEY = envAnonKey || storedKey || DEFAULT_SUPABASE_KEY;
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 

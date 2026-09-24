@@ -15,21 +15,21 @@ export default async function handler(req: Request) {
     });
   }
 
-  const url = new URL(req.url);
-  // Strip /api/supabase prefix to get the real Supabase path
-  const targetPath = url.pathname.replace(/^\/api\/supabase/, '');
-  const targetUrl = `https://uvvehsnukzuujncwjwqq.supabase.co${targetPath}${url.search}`;
-
-  const headers = new Headers();
-  req.headers.forEach((value, key) => {
-    const k = key.toLowerCase();
-    if (k !== 'host' && k !== 'connection') {
-      headers.set(key, value);
-    }
-  });
-  headers.set('host', 'uvvehsnukzuujncwjwqq.supabase.co');
-
   try {
+    const url = new URL(req.url);
+    // Strip /api/supabase prefix to get the real Supabase path
+    const targetPath = url.pathname.replace(/^\/api\/supabase/, '');
+    const targetUrl = `https://uvvehsnukzuujncwjwqq.supabase.co${targetPath}${url.search}`;
+
+    const headers = new Headers();
+    req.headers.forEach((value, key) => {
+      const k = key.toLowerCase();
+      // Skip forbidden headers that fetch manages or shouldn't be forwarded
+      if (!['host', 'connection', 'content-length'].includes(k)) {
+        headers.set(key, value);
+      }
+    });
+
     const isBodyAllowed = req.method !== 'GET' && req.method !== 'HEAD';
     const body = isBodyAllowed ? await req.arrayBuffer() : undefined;
 
@@ -55,6 +55,8 @@ export default async function handler(req: Request) {
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': '*',
       },
     });
   }

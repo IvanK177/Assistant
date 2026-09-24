@@ -88,7 +88,7 @@ export default function AuthModal({ user, onClose, onSyncPush, onSyncPull }: Aut
   };
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
         <div className="modal-header">
           <div className="flex items-center gap-8">

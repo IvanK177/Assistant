@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/supabase/(.*)",
+      "destination": "https://uvvehsnukzuujncwjwqq.supabase.co/$1"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }

@@ -8,6 +8,9 @@ import {
   getISOWeekNumber, getAutoShift,
 } from './store';
 import TransportMap from './YandexMap';
+import type { User } from '@supabase/supabase-js';
+import { supabase, saveCloudState, loadCloudState } from './lib/supabase';
+import AuthModal from './AuthModal';
 
 // ============================================================
 // Hooks
@@ -1321,13 +1324,62 @@ function LiveClock() {
 export default function App() {
   const [state, setState] = useState<AppState>(() => loadState());
   const notifTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const cloudSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = useCallback((next: Partial<AppState> | ((prev: AppState) => AppState)) => {
     setState(prev => {
       const newState = typeof next === 'function' ? next(prev) : { ...prev, ...next };
       saveState(newState);
+
+      // Cloud sync if user logged in
+      if (currentUser && supabase) {
+        if (cloudSyncTimerRef.current) clearTimeout(cloudSyncTimerRef.current);
+        cloudSyncTimerRef.current = setTimeout(() => {
+          saveCloudState(currentUser.id, newState);
+        }, 1500);
+      }
+
       return newState;
     });
+  }, [currentUser]);
+
+  // Supabase Auth and initial Cloud Sync
+  useEffect(() => {
+    if (!supabase) return;
+
+    supabase.auth.getSession().then(({ data }) => {
+      const u = data.session?.user ?? null;
+      setCurrentUser(u);
+      if (u) {
+        loadCloudState(u.id).then(cloudState => {
+          if (cloudState) {
+            setState(cloudState);
+            saveState(cloudState);
+          }
+        });
+      }
+    });
+
+    const { data: authSub } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const u = session?.user ?? null;
+      setCurrentUser(u);
+      if (u) {
+        const cloudState = await loadCloudState(u.id);
+        if (cloudState) {
+          setState(cloudState);
+          saveState(cloudState);
+        } else {
+          // Upload local state to cloud on first login
+          await saveCloudState(u.id, state);
+        }
+      }
+    });
+
+    return () => {
+      authSub.subscription.unsubscribe();
+    };
   }, []);
 
   // Notification scheduler
@@ -1387,7 +1439,31 @@ export default function App() {
           <div className="app-logo-icon">🎓</div>
           <span>Assistant</span>
         </div>
-        <LiveClock />
+        <div className="flex items-center gap-8">
+          <LiveClock />
+          <button
+            id="auth-btn"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setShowAuthModal(true)}
+            style={{
+              padding: '4px 10px',
+              fontSize: '0.78rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: currentUser ? 'rgba(34, 197, 94, 0.12)' : 'rgba(99, 102, 241, 0.12)',
+              border: currentUser ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(99, 102, 241, 0.3)',
+              borderRadius: 99,
+              color: currentUser ? 'var(--green)' : 'var(--text-primary)',
+            }}
+            title={currentUser ? `Синхронизировано: ${currentUser.email}` : 'Войти для облачной синхронизации'}
+          >
+            <span>{currentUser ? '☁️' : '👤'}</span>
+            <span style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {currentUser ? (currentUser.email?.split('@')[0] || 'Облако') : 'Войти'}
+            </span>
+          </button>
+        </div>
       </header>
 
       <main className="app-content">
@@ -1431,6 +1507,27 @@ export default function App() {
           </button>
         ))}
       </nav>
+
+      {/* Cloud Auth & Sync Modal */}
+      {showAuthModal && (
+        <AuthModal
+          user={currentUser}
+          state={state}
+          onClose={() => setShowAuthModal(false)}
+          onSyncPush={async () => {
+            if (currentUser) await saveCloudState(currentUser.id, state);
+          }}
+          onSyncPull={async () => {
+            if (currentUser) {
+              const cloud = await loadCloudState(currentUser.id);
+              if (cloud) {
+                setState(cloud);
+                saveState(cloud);
+              }
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

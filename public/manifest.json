@@ -1,0 +1,18 @@
+{
+  "name": "Assistant — Расписание и транспорт",
+  "short_name": "Assistant",
+  "description": "Умный помощник студента — расписание пар, автобусы и домашние задания",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d17",
+  "theme_color": "#6366f1",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

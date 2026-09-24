@@ -11,12 +11,18 @@ const envAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const storedUrl = typeof localStorage !== 'undefined' ? localStorage.getItem('assistant_supabase_url') || '' : '';
 const storedKey = typeof localStorage !== 'undefined' ? localStorage.getItem('assistant_supabase_key') || '' : '';
 
-// By default, route through /api/supabase proxy so Russian providers never block requests with Failed to fetch!
-const proxyUrl = typeof window !== 'undefined' && window.location?.origin
-  ? `${window.location.origin}/api/supabase`
-  : 'https://uvvehsnukzuujncwjwqq.supabase.co';
+// In browser, always route through /api/supabase proxy to completely prevent ISP blocks ('Failed to fetch') in Russia
+function resolveSupabaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    if (storedUrl && !storedUrl.includes('.supabase.co')) {
+      return storedUrl;
+    }
+    return `${window.location.origin}/api/supabase`;
+  }
+  return envUrl || 'https://uvvehsnukzuujncwjwqq.supabase.co';
+}
 
-export const SUPABASE_URL = storedUrl || envUrl || proxyUrl;
+export const SUPABASE_URL = resolveSupabaseUrl();
 export const SUPABASE_ANON_KEY = storedKey || envAnonKey || DEFAULT_SUPABASE_KEY;
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
